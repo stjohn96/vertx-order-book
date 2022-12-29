@@ -21,6 +21,8 @@ class ApiVerticle : AbstractVerticle() {
     }
 
     router.get("/:pair/orderbook").handler(this@ApiVerticle::getOrderBook)
+    router.post("/:pair/submitlimitorder").handler(this@ApiVerticle::submitLimitOrder)
+    router.get("/:pair/tradehistory").handler(this@ApiVerticle::getTradeHistory)
 
     // Init pairs
     orderBooks.put("BTCZAR", OrderBook())
@@ -45,6 +47,7 @@ class ApiVerticle : AbstractVerticle() {
     if (orderBook == null){
       context.response().statusCode = 404
       context.response().end()
+      return
     }
 
     context.response().statusCode = 200
@@ -52,19 +55,39 @@ class ApiVerticle : AbstractVerticle() {
     context.response().end(Gson().toJson(orderBook?.getOrderBook()))
   }
 
-  // private fun submitLimitOrder(context: RoutingContext) {
-  //   val order = Gson().fromJson(context.bodyAsString, Order::class.java)
-  //   orderBook.submitLimitOrder(order)
-  //   context.response().statusCode = 200
-  //   context.response().putHeader("Content-Type", "application/json")
-  //   context.response().end(Gson().toJson(order))
-  // }
+  private fun submitLimitOrder(context: RoutingContext) {
+    val pair = context.pathParam("pair")
+    val orderBook = orderBooks.get(pair)
 
-  // private fun getTradeHistory(context: RoutingContext) {
-  //   context.response().statusCode = 200
-  //   context.response().putHeader("Content-Type", "application/json")
-  //   context.response().end(Gson().toJson(orderBook.getRecentTrades()))
-  // }
+    // Check if pair is not in orderbooks return 404
+    if (orderBook == null){
+      context.response().statusCode = 404
+      context.response().end()
+      return
+    }
+
+    val order = Gson().fromJson(context.bodyAsString, Order::class.java)
+    orderBook.submitLimitOrder(order)
+    context.response().statusCode = 200
+    context.response().putHeader("Content-Type", "application/json")
+    context.response().end(Gson().toJson(order))
+  }
+
+  private fun getTradeHistory(context: RoutingContext) {
+    val pair = context.pathParam("pair")
+    val orderBook = orderBooks.get(pair)
+
+    // Check if pair is not in orderbooks return 404
+    if (orderBook == null){
+      context.response().statusCode = 404
+      context.response().end()
+      return
+    }
+
+    context.response().statusCode = 200
+    context.response().putHeader("Content-Type", "application/json")
+    context.response().end(Gson().toJson(orderBook.getRecentTrades()))
+  }
 }
 
 
