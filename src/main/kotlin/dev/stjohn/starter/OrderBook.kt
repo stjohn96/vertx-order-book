@@ -1,7 +1,8 @@
 package dev.stjohn.starter
+
 import java.util.PriorityQueue
 
-class OrderBook(){
+class OrderBook() {
   // Use a priority queue to store the orders sorted by price
   private val bids = PriorityQueue<Order>(compareBy { it.price })
   private val asks = PriorityQueue<Order>(compareBy { it.price })
@@ -13,51 +14,82 @@ class OrderBook(){
   private val trades = ArrayList<Trade>()
 
   fun submitLimitOrder(order: Order) {
-      // Check if the order can be immediately matched with an existing order
-      val otherOrder = if (order.isBid) {
-          if (asks.isNotEmpty() && order.price >= asks.peek().price) asks.poll() else null
-      } else {
-          if (bids.isNotEmpty() && order.price <= bids.peek().price) bids.poll() else null
-      }
+    // Check if the order can be immediately matched with an existing order
 
-      // If the order can be matched, execute the trade and add it to the list of recent trades
-      if (otherOrder != null) {
-          val trade = Trade(order, otherOrder)
-          trades.add(trade)
+    // TODO: Remove .poll() and replace with a more efficient solution unnessary to remove from queue until we know we have a match
+    val otherOrder =
+        if (order.side == "BID") {
+          if (asks.isNotEmpty() && order.price >= asks.peek().price) asks.poll() else null
+        } else {
+          if (bids.isNotEmpty() && order.price <= bids.peek().price) bids.poll() else null
+        }
+
+    // If the order can be matched, execute the trade and add it to the list of recent trades
+    if (otherOrder != null) {
+      var tradeQuantity = otherOrder.quantity
+      println("Placed Order $order")
+      println("Placed Order $otherOrder")
+      if (tradeQuantity > order.quantity) {
+        tradeQuantity = order.quantity
+        order.quantity -= tradeQuantity
+        otherOrder.quantity -= tradeQuantity
+        asks.add(otherOrder)
       } else {
-          // Otherwise, add the order to the data structure
-          orders[order.id] = order
-          if (order.isBid) {
-              bids.add(order)
-          } else {
-              asks.add(order)
-          }
+        order.quantity -= tradeQuantity
       }
+      val trade = Trade(order, otherOrder, otherOrder.price, tradeQuantity)
+      trades.add(trade)
+
+      // If there is still remaining quantity for the original order, add it back to the order book
+      if ((order.quantity - tradeQuantity) > 0) {
+        orders[(orders.size + 1).toString()] = order
+        if (order.side == "BID") {
+          bids.add(order)
+        } else {
+          asks.add(order)
+        }
+      }
+    } else {
+      // Otherwise, add the order to the data structure
+      orders[(orders.size + 1).toString()] = order
+      if (order.side == "BID") {
+        bids.add(order)
+      } else {
+        asks.add(order)
+      }
+    }
   }
 
   fun cancelOrder(orderId: String) {
-      // Remove the order with the given ID from the data structure
-      val order = orders.remove(orderId)
-      if (order != null) {
-          if (order.isBid) {
-              bids.remove(order)
-          } else {
-              asks.remove(order)
-          }
+    // Remove the order with the given ID from the data structure
+    val order = orders.remove(orderId)
+    if (order != null) {
+      if (order.side == "BID") {
+        bids.remove(order)
+      } else {
+        asks.remove(order)
       }
+    }
   }
 
   fun getOrderBook(): OrderBookData {
-      // Return the current state of the order book
-      return OrderBookData(bids.toList(), asks.toList())
+    // Return the current state of the order book
+    return OrderBookData(bids.toList(), asks.toList())
   }
 
   fun getRecentTrades(): List<Trade> {
-      // Return the list of recent trades
-      return trades
+    // Return the list of recent trades
+    return trades
   }
 }
 
-data class Order(val id: String, val price: Double, val quantity: Double, val isBid: Boolean)
-data class Trade(val bid: Order, val ask: Order)
+data class Order(val price: Double, var quantity: Double, val side: String)
+
+data class Trade(
+    val bid: Order,
+    val ask: Order,
+    val executePrice: Double,
+    val executeQuantity: Double
+)
+
 data class OrderBookData(val bids: List<Order>, val asks: List<Order>)
