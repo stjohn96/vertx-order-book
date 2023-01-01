@@ -40,7 +40,6 @@ class ApiVerticle : AbstractVerticle() {
     }
   }
 
-
   private fun getOrderBook(context: RoutingContext) {
     val pair = context.pathParam("pair")
     val orderBook = orderBooks.get(pair)

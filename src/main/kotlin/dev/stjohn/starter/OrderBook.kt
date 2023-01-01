@@ -1,11 +1,13 @@
 package dev.stjohn.starter
 
+import java.time.Instant
 import java.util.PriorityQueue
+import java.util.UUID
 
 class OrderBook() {
-  // Use a priority queue to store the orders sorted by price
-  private val bids = PriorityQueue<Order>(compareBy { it.price })
-  private val asks = PriorityQueue<Order>(compareBy { it.price })
+  // Use a priority queue to store the orders sorted by price and timestamp
+  private val bids = PriorityQueue<Order>(compareBy { it.price ; it.timestamp })
+  private val asks = PriorityQueue<Order>(compareBy { it.price ; it.timestamp })
 
   // Use a hash map to store the orders indexed by their ID
   private val orders = HashMap<String, Order>()
@@ -16,7 +18,8 @@ class OrderBook() {
   fun submitLimitOrder(order: Order) {
     // Check if the order can be immediately matched with an existing order
 
-    // TODO: Remove .poll() and replace with a more efficient solution unnessary to remove from queue until we know we have a match
+    // TODO: Remove .poll() and replace with a more efficient solution unnessary to remove from
+    // queue until we know we have a match
     val otherOrder =
         if (order.side == "BID") {
           if (asks.isNotEmpty() && order.price >= asks.peek().price) asks.poll() else null
@@ -37,8 +40,26 @@ class OrderBook() {
       } else {
         order.quantity -= tradeQuantity
       }
-      val trade = Trade(order, otherOrder, otherOrder.price, tradeQuantity)
-      trades.add(trade)
+      if (order.side == "BID") {
+
+        trades.add(
+            Trade(
+                bid = order,
+                ask = otherOrder,
+                executePrice = otherOrder.price,
+                executeQuantity = tradeQuantity
+            )
+        )
+      } else {
+        trades.add(
+            Trade(
+                bid = otherOrder,
+                ask = order,
+                executePrice = otherOrder.price,
+                executeQuantity = tradeQuantity
+            )
+        )
+      }
 
       // If there is still remaining quantity for the original order, add it back to the order book
       if ((order.quantity - tradeQuantity) > 0) {
@@ -83,13 +104,21 @@ class OrderBook() {
   }
 }
 
-data class Order(val price: Double, var quantity: Double, val side: String)
+data class Order(
+    val id: String = UUID.randomUUID().toString(),
+    val price: Double,
+    var quantity: Double,
+    val side: String,
+    val timestamp: Long = Instant.now().toEpochMilli()
+)
 
 data class Trade(
+    val id: String = UUID.randomUUID().toString(),
     val bid: Order,
     val ask: Order,
     val executePrice: Double,
-    val executeQuantity: Double
+    val executeQuantity: Double,
+    val timestamp: Long = Instant.now().toEpochMilli()
 )
 
 data class OrderBookData(val bids: List<Order>, val asks: List<Order>)

@@ -127,8 +127,8 @@ class TestApiVerticle {
   // Simple Order matching
   @Test
   fun simpleOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask: Order = Order(10000.0, 1.0, "ASK")
-    val bid: Order = Order(10000.0, 1.0, "BID")
+    val ask: Order = Order(price=10000.0, quantity=1.0, side="ASK")
+    val bid: Order = Order(price=10000.0, quantity=1.0, side="BID")
     val orderBook: OrderBook = OrderBook()
 
     orderBook.submitLimitOrder(ask)
@@ -145,9 +145,9 @@ class TestApiVerticle {
   // Ensure order macthing to cheapest ask
   @Test
   fun higherBidLowerAskOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask1: Order = Order(9000.0, 1.0, "ASK")
-    val ask2: Order = Order(10000.0, 1.0, "ASK")
-    val bid: Order = Order(10000.0, 1.0, "BID")
+    val ask1: Order = Order(price=9000.0, quantity=1.0, side="ASK")
+    val ask2: Order = Order(price=10000.0, quantity=1.0, side="ASK")
+    val bid: Order = Order(price=10000.0, quantity=1.0, side="BID")
 
     val orderBook: OrderBook = OrderBook()
 
@@ -166,8 +166,8 @@ class TestApiVerticle {
   // Ensure partial order matching
   @Test
   fun partialOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask: Order = Order(10000.0, 1.0, "ASK")
-    val bid: Order = Order(10000.0, 0.5, "BID")
+    val ask: Order = Order(price=10000.0, quantity=1.0, side="ASK")
+    val bid: Order = Order(price=10000.0, quantity=0.5, side="BID")
 
     val orderBook: OrderBook = OrderBook()
 
