@@ -127,8 +127,8 @@ class TestApiVerticle {
   // Simple Order matching
   @Test
   fun simpleOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask: Order = Order(price=10000.0, quantity=1.0, side="ASK")
-    val bid: Order = Order(price=10000.0, quantity=1.0, side="BID")
+    val ask: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
+    val bid: Order = Order(price = 10000.0, quantity = 1.0, side = "BID")
     val orderBook: OrderBook = OrderBook()
 
     orderBook.submitLimitOrder(ask)
@@ -145,9 +145,9 @@ class TestApiVerticle {
   // Ensure order macthing to cheapest ask
   @Test
   fun higherBidLowerAskOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask1: Order = Order(price=9000.0, quantity=1.0, side="ASK")
-    val ask2: Order = Order(price=10000.0, quantity=1.0, side="ASK")
-    val bid: Order = Order(price=10000.0, quantity=1.0, side="BID")
+    val ask1: Order = Order(price = 9000.0, quantity = 1.0, side = "ASK")
+    val ask2: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
+    val bid: Order = Order(price = 10000.0, quantity = 1.0, side = "BID")
 
     val orderBook: OrderBook = OrderBook()
 
@@ -166,8 +166,8 @@ class TestApiVerticle {
   // Ensure partial order matching
   @Test
   fun partialOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask: Order = Order(price=10000.0, quantity=1.0, side="ASK")
-    val bid: Order = Order(price=10000.0, quantity=0.5, side="BID")
+    val ask: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
+    val bid: Order = Order(price = 10000.0, quantity = 0.5, side = "BID")
 
     val orderBook: OrderBook = OrderBook()
 
@@ -184,4 +184,26 @@ class TestApiVerticle {
     testContext.completeNow()
   }
 
+  // Simple Order matching
+  @Test
+  fun ensureTimestampOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
+    val ask1: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
+    // Sleep for 100ms to ensure timestamp is different
+    Thread.sleep(100)
+    println("Here")
+    val ask2: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
+    val bid: Order = Order(price = 10000.0, quantity = 1.0, side = "BID")
+    val orderBook: OrderBook = OrderBook()
+
+    orderBook.submitLimitOrder(ask1)
+    orderBook.submitLimitOrder(ask2)
+    orderBook.submitLimitOrder(bid)
+
+    Assertions.assertTrue(orderBook.getOrderBook().bids.isEmpty())
+    Assertions.assertTrue(orderBook.getOrderBook().asks.first() == ask2)
+    Assertions.assertEquals(orderBook.getRecentTrades().first().bid, bid)
+    Assertions.assertEquals(orderBook.getRecentTrades().first().ask, ask1)
+
+    testContext.completeNow()
+  }
 }
