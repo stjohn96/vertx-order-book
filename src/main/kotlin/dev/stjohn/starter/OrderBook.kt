@@ -63,7 +63,7 @@ class OrderBook() {
 
       // If there is still remaining quantity for the original order, add it back to the order book
       if ((order.quantity - tradeQuantity) > 0) {
-        orders[(orders.size + 1).toString()] = order
+        orders[order.id] = order
         if (order.side == "BID") {
           bids.add(order)
         } else {
@@ -72,7 +72,7 @@ class OrderBook() {
       }
     } else {
       // Otherwise, add the order to the data structure
-      orders[(orders.size + 1).toString()] = order
+      orders[order.id] = order
       if (order.side == "BID") {
         bids.add(order)
       } else {
@@ -83,7 +83,10 @@ class OrderBook() {
 
   fun cancelOrder(orderId: String) {
     // Remove the order with the given ID from the data structure
+    println("Cancel Order $orderId")
+    println("Orders $orders")
     val order = orders.remove(orderId)
+    print("Order $order")
     if (order != null) {
       if (order.side == "BID") {
         bids.remove(order)
@@ -91,6 +94,7 @@ class OrderBook() {
         asks.remove(order)
       }
     }
+    println("Orders $orders")
   }
 
   fun getOrderBook(): OrderBookData {

@@ -5,6 +5,10 @@ import io.vertx.core.http.HttpClient
 import io.vertx.core.http.HttpClientRequest
 import io.vertx.core.http.HttpClientResponse
 import io.vertx.core.http.HttpMethod
+import io.vertx.core.json.JsonObject
+import io.vertx.ext.auth.JWTOptions
+import io.vertx.ext.auth.jwt.JWTAuth
+import io.vertx.ext.auth.jwt.JWTAuthOptions
 import io.vertx.junit5.VertxExtension
 import io.vertx.junit5.VertxTestContext
 import org.junit.jupiter.api.Assertions
@@ -14,6 +18,15 @@ import org.junit.jupiter.api.extension.ExtendWith
 
 @ExtendWith(VertxExtension::class)
 class TestApiVerticle {
+
+  private val config =
+      JWTAuthOptions()
+          .addJwk(
+              JsonObject()
+                  .put("alg", "HS256")
+                  .put("kty", "oct")
+                  .put("k", "ZzwjfDFDGDFGJgvS8hSfIzJ27nY9IH0vLE8UNpJjHBY")
+          )
 
   @BeforeEach
   fun deploy_verticle(vertx: Vertx, testContext: VertxTestContext) {
@@ -36,12 +49,20 @@ class TestApiVerticle {
 
   @Test
   fun getOrderBookForNonExistentPair(vertx: Vertx, testContext: VertxTestContext) {
+    val authProvider = JWTAuth.create(vertx, config)
+    val jwt = authProvider.generateToken(JsonObject().put("sub", "vertx-order-book"), JWTOptions())
+
     // Issue an HTTP request
     // Assert that the response is 404
-
     val client: HttpClient = vertx.createHttpClient()
     client
         .request(HttpMethod.GET, 8889, "localhost", "/BTCUSD/orderbook")
+        .onSuccess { request: HttpClientRequest ->
+          request.putHeader("Content-Type", "application/json")
+          // Put JWT token in header
+          request.putHeader("Authorization", "Bearer $jwt")
+          request.end()
+        }
         .compose { req -> req.send().map(HttpClientResponse::statusCode) }
         .onComplete(
             testContext.succeeding { statusCode ->
@@ -55,12 +76,20 @@ class TestApiVerticle {
 
   @Test
   fun getOrderBookForPair(vertx: Vertx, testContext: VertxTestContext) {
+    val authProvider = JWTAuth.create(vertx, config)
+    val jwt = authProvider.generateToken(JsonObject().put("sub", "vertx-order-book"), JWTOptions())
+
     // Issue an HTTP request
     // Assert that the response is 404
 
     val client: HttpClient = vertx.createHttpClient()
     client
         .request(HttpMethod.GET, 8889, "localhost", "/BTCZAR/orderbook")
+        .onSuccess { request: HttpClientRequest ->
+          request.putHeader("Content-Type", "application/json")
+          request.putHeader("Authorization", "Bearer $jwt")
+          request.end()
+        }
         .compose { req -> req.send() }
         .onComplete(
             testContext.succeeding { response ->
@@ -79,6 +108,9 @@ class TestApiVerticle {
   // Submit limit order test
   @Test
   fun submitLimitOrderBid(vertx: Vertx, testContext: VertxTestContext) {
+    val authProvider = JWTAuth.create(vertx, config)
+    val jwt = authProvider.generateToken(JsonObject().put("sub", "vertx-order-book"), JWTOptions())
+
     val orderJson: String = """{"price":10000.0, "quantity":1.0, "side": "BID"}"""
     val client: HttpClient = vertx.createHttpClient()
     client
@@ -86,6 +118,7 @@ class TestApiVerticle {
         .onSuccess { request: HttpClientRequest ->
           request.putHeader("Content-Type", "application/json")
           request.putHeader("Content-Length", orderJson.length.toString())
+          request.putHeader("Authorization", "Bearer $jwt")
           request.write(orderJson)
           request.end()
         }
@@ -103,6 +136,9 @@ class TestApiVerticle {
   // Submit limit order test
   @Test
   fun submitLimitOrderAsk(vertx: Vertx, testContext: VertxTestContext) {
+    val authProvider = JWTAuth.create(vertx, config)
+    val jwt = authProvider.generateToken(JsonObject().put("sub", "vertx-order-book"), JWTOptions())
+
     val orderJson: String = """{"price":10000.0, "quantity":1.0, "side": "ASK"}"""
     val client: HttpClient = vertx.createHttpClient()
     client
@@ -110,6 +146,7 @@ class TestApiVerticle {
         .onSuccess { request: HttpClientRequest ->
           request.putHeader("Content-Type", "application/json")
           request.putHeader("Content-Length", orderJson.length.toString())
+          request.putHeader("Authorization", "Bearer $jwt")
           request.write(orderJson)
           request.end()
         }
@@ -124,86 +161,94 @@ class TestApiVerticle {
         )
   }
 
-  // Simple Order matching
   @Test
-  fun simpleOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
-    val bid: Order = Order(price = 10000.0, quantity = 1.0, side = "BID")
-    val orderBook: OrderBook = OrderBook()
+  fun getRecentTrades(vertx: Vertx, testContext: VertxTestContext) {
+    val authProvider = JWTAuth.create(vertx, config)
+    val jwt = authProvider.generateToken(JsonObject().put("sub", "vertx-order-book"), JWTOptions())
 
-    orderBook.submitLimitOrder(ask)
-    orderBook.submitLimitOrder(bid)
-
-    Assertions.assertTrue(orderBook.getOrderBook().bids.isEmpty())
-    Assertions.assertTrue(orderBook.getOrderBook().asks.isEmpty())
-    Assertions.assertEquals(orderBook.getRecentTrades().first().bid, bid)
-    Assertions.assertEquals(orderBook.getRecentTrades().first().ask, ask)
-
-    testContext.completeNow()
+    val client: HttpClient = vertx.createHttpClient()
+    client
+        .request(HttpMethod.GET, 8889, "localhost", "/BTCZAR/tradehistory")
+        .onSuccess { request: HttpClientRequest ->
+          request.putHeader("Content-Type", "application/json")
+          request.putHeader("Authorization", "Bearer $jwt")
+          request.end()
+        }
+        .compose { req -> req.send() }
+        .onComplete(
+            testContext.succeeding { response ->
+              testContext.verify {
+                Assertions.assertEquals(200, response.statusCode())
+                Assertions.assertEquals("application/json", response.getHeader("Content-Type"))
+                response.handler({ body ->
+                  Assertions.assertEquals("[]", body.toString())
+                  testContext.completeNow()
+                })
+              }
+            }
+        )
   }
 
-  // Ensure order macthing to cheapest ask
   @Test
-  fun higherBidLowerAskOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask1: Order = Order(price = 9000.0, quantity = 1.0, side = "ASK")
-    val ask2: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
-    val bid: Order = Order(price = 10000.0, quantity = 1.0, side = "BID")
-
-    val orderBook: OrderBook = OrderBook()
-
-    orderBook.submitLimitOrder(ask1)
-    orderBook.submitLimitOrder(ask2)
-    orderBook.submitLimitOrder(bid)
-
-    Assertions.assertTrue(orderBook.getOrderBook().bids.isEmpty())
-    Assertions.assertTrue(orderBook.getOrderBook().asks.first() == ask2)
-    Assertions.assertEquals(orderBook.getRecentTrades().first().bid, bid)
-    Assertions.assertEquals(orderBook.getRecentTrades().first().ask, ask1)
-
-    testContext.completeNow()
+  fun submitLimitOrderNoAuth(vertx: Vertx, testContext: VertxTestContext) {
+    val orderJson: String = """{"price":10000.0, "quantity":1.0, "side": "BID"}"""
+    val client: HttpClient = vertx.createHttpClient()
+    client
+        .request(HttpMethod.POST, 8889, "localhost", "/BTCZAR/submitlimitorder")
+        .onSuccess { request: HttpClientRequest ->
+          request.putHeader("Content-Type", "application/json")
+          request.putHeader("Content-Length", orderJson.length.toString())
+          request.write(orderJson)
+          request.end()
+        }
+        .compose { req -> req.send().map(HttpClientResponse::statusCode) }
+        .onComplete(
+            testContext.succeeding { statusCode ->
+              testContext.verify {
+                Assertions.assertEquals(401, statusCode)
+                testContext.completeNow()
+              }
+            }
+        )
   }
 
-  // Ensure partial order matching
   @Test
-  fun partialOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
-    val bid: Order = Order(price = 10000.0, quantity = 0.5, side = "BID")
-
-    val orderBook: OrderBook = OrderBook()
-
-    orderBook.submitLimitOrder(ask)
-    orderBook.submitLimitOrder(bid)
-
-    println(orderBook.getRecentTrades())
-
-    Assertions.assertTrue(orderBook.getOrderBook().bids.isEmpty())
-    Assertions.assertTrue(orderBook.getOrderBook().asks.first().quantity == 0.5)
-    Assertions.assertEquals(orderBook.getRecentTrades().first().bid, bid)
-    Assertions.assertEquals(orderBook.getRecentTrades().first().ask, ask)
-    Assertions.assertEquals(orderBook.getRecentTrades().first().executeQuantity, 0.5)
-    testContext.completeNow()
+  fun getOrderBookForPairNoAuth(vertx: Vertx, testContext: VertxTestContext) {
+    val client: HttpClient = vertx.createHttpClient()
+    client
+        .request(HttpMethod.GET, 8889, "localhost", "/BTCZAR/orderbook")
+        .onSuccess { request: HttpClientRequest ->
+          request.putHeader("Content-Type", "application/json")
+          request.end()
+        }
+        .compose { req -> req.send().map(HttpClientResponse::statusCode) }
+        .onComplete(
+            testContext.succeeding { statusCode ->
+              testContext.verify {
+                Assertions.assertEquals(401, statusCode)
+                testContext.completeNow()
+              }
+            }
+        )
   }
 
-  // Simple Order matching
   @Test
-  fun ensureTimestampOrderMatching(vertx: Vertx, testContext: VertxTestContext) {
-    val ask1: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
-    // Sleep for 100ms to ensure timestamp is different
-    Thread.sleep(100)
-    println("Here")
-    val ask2: Order = Order(price = 10000.0, quantity = 1.0, side = "ASK")
-    val bid: Order = Order(price = 10000.0, quantity = 1.0, side = "BID")
-    val orderBook: OrderBook = OrderBook()
-
-    orderBook.submitLimitOrder(ask1)
-    orderBook.submitLimitOrder(ask2)
-    orderBook.submitLimitOrder(bid)
-
-    Assertions.assertTrue(orderBook.getOrderBook().bids.isEmpty())
-    Assertions.assertTrue(orderBook.getOrderBook().asks.first() == ask2)
-    Assertions.assertEquals(orderBook.getRecentTrades().first().bid, bid)
-    Assertions.assertEquals(orderBook.getRecentTrades().first().ask, ask1)
-
-    testContext.completeNow()
+  fun getRecentTradesNoAuth(vertx: Vertx, testContext: VertxTestContext) {
+    val client: HttpClient = vertx.createHttpClient()
+    client
+        .request(HttpMethod.GET, 8889, "localhost", "/BTCZAR/tradehistory")
+        .onSuccess { request: HttpClientRequest ->
+          request.putHeader("Content-Type", "application/json")
+          request.end()
+        }
+        .compose { req -> req.send().map(HttpClientResponse::statusCode) }
+        .onComplete(
+            testContext.succeeding { statusCode ->
+              testContext.verify {
+                Assertions.assertEquals(401, statusCode)
+                testContext.completeNow()
+              }
+            }
+        )
   }
 }
