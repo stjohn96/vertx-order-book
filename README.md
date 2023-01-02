@@ -23,8 +23,6 @@ The API will be running at [http://localhost:8889](http://localhost:8889/).
 
 To authenticate a user, send a GET request to `http://localhost:8889/auth`. This will return a JSON Web Token (JWT) that must be included in the header of subsequent requests to the order book APIs. The header should have the following format:
 
-Copy code
-
 `Authorization: Bearer <JWT>`
 
 ## API Endpoints
