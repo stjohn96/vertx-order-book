@@ -49,8 +49,6 @@ class OrderBookTests {
     orderBook.submitLimitOrder(ask)
     orderBook.submitLimitOrder(bid)
 
-    println(orderBook.getRecentTrades())
-
     Assertions.assertTrue(orderBook.getOrderBook().bids.isEmpty())
     Assertions.assertTrue(orderBook.getOrderBook().asks.first().quantity == 0.5)
     Assertions.assertEquals(orderBook.getRecentTrades().first().bid, bid)

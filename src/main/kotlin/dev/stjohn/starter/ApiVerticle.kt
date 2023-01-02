@@ -47,6 +47,11 @@ class ApiVerticle : AbstractVerticle() {
         .handler(JWTAuthHandler.create(authProvider))
         .handler(this@ApiVerticle::getTradeHistory)
 
+    router
+        .delete("/:pair/cancelorder/:orderId")
+        .handler(JWTAuthHandler.create(authProvider))
+        .handler(this@ApiVerticle::cancelOrder)
+
     // Init pairs
     orderBooks.put("BTCZAR", OrderBook())
     orderBooks.put("ETHZAR", OrderBook())
@@ -97,13 +102,44 @@ class ApiVerticle : AbstractVerticle() {
     }
 
     context.request().bodyHandler { body ->
-      val order = Gson().fromJson(body.toString(), Order::class.java)
-
-      orderBook.submitLimitOrder(order)
+      val json = body.toJsonObject()
+      val order = Order(
+          price=json.getDouble("price"),
+          quantity=json.getDouble("quantity"),
+          side=json.getString("side")
+      )
+      val submittedOrder: Order = orderBook.submitLimitOrder(order)
 
       context.response().statusCode = 200
       context.response().putHeader("Content-Type", "application/json")
+      context.response().end(Gson().toJson(submittedOrder))
+    }
+  }
+
+  // TODO: Implement cancel order
+  private fun cancelOrder(context: RoutingContext) {
+    val orderId = context.pathParam("orderId")
+    val pair = context.pathParam("pair")
+    val orderBook = orderBooks.get(pair)
+
+    // Check if pair is not in orderbooks return 404
+    if (orderBook == null) {
+      context.response().statusCode = 404
       context.response().end()
+      return
+    }
+
+    val canceledOrder: Order? = orderBook.cancelOrder(orderId)
+    if (canceledOrder == null) {
+      context.response().statusCode = 404
+      context.response().end()
+    } else {
+      context.request().bodyHandler { body ->
+        context.response().statusCode = 200
+        context.response().putHeader("Content-Type", "application/json")
+        context.response().end(Gson().toJson(canceledOrder))
+
+      }
     }
   }
 

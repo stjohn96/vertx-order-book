@@ -127,6 +127,8 @@ class TestApiVerticle {
             testContext.succeeding { response ->
               testContext.verify {
                 Assertions.assertEquals(200, response.statusCode())
+                Assertions.assertEquals("application/json", response.getHeader("Content-Type"))
+                response.handler({ body -> println(body.toString()) })
                 testContext.completeNow()
               }
             }
@@ -190,6 +192,56 @@ class TestApiVerticle {
   }
 
   @Test
+  fun cancelOrder(vertx: Vertx, testContext: VertxTestContext) {
+    val authProvider = JWTAuth.create(vertx, config)
+    val jwt = authProvider.generateToken(JsonObject().put("sub", "vertx-order-book"), JWTOptions())
+
+    val orderJson: String = """{"price":10000.0, "quantity":1.0, "side": "BID"}"""
+    val client: HttpClient = vertx.createHttpClient()
+
+    client
+        .request(HttpMethod.POST, 8889, "localhost", "/BTCZAR/submitlimitorder")
+        .onSuccess { request: HttpClientRequest ->
+          request.putHeader("Content-Type", "application/json")
+          request.putHeader("Content-Length", orderJson.length.toString())
+          request.putHeader("Authorization", "Bearer $jwt")
+          request.write(orderJson)
+          request.end()
+        }
+        .compose { req -> req.send() }
+        .onComplete(
+            testContext.succeeding { response ->
+              testContext.verify {
+                Assertions.assertEquals(200, response.statusCode())
+                Assertions.assertEquals("application/json", response.getHeader("Content-Type"))
+                response.handler({ body ->
+                  val orderId = body.toJsonObject().getString("id")
+                  client
+                      .request(HttpMethod.DELETE, 8889, "localhost", "/BTCZAR/cancelorder/$orderId")
+                      .onSuccess { request: HttpClientRequest ->
+                        request.putHeader("Content-Type", "application/json")
+                        request.putHeader("Authorization", "Bearer $jwt")
+                        request.end()
+                      }
+                      .compose { req -> req.send() }
+                      .onComplete(
+                          testContext.succeeding { response ->
+                            testContext.verify {
+                              response.handler({ body ->
+                                Assertions.assertEquals(orderId, body.toJsonObject().getString("id"))
+                                Assertions.assertEquals(200, response.statusCode())
+                                testContext.completeNow()
+                              })
+                            }
+                          }
+                      )
+                })
+              }
+            }
+        )
+  }
+
+  @Test
   fun submitLimitOrderNoAuth(vertx: Vertx, testContext: VertxTestContext) {
     val orderJson: String = """{"price":10000.0, "quantity":1.0, "side": "BID"}"""
     val client: HttpClient = vertx.createHttpClient()
@@ -237,6 +289,26 @@ class TestApiVerticle {
     val client: HttpClient = vertx.createHttpClient()
     client
         .request(HttpMethod.GET, 8889, "localhost", "/BTCZAR/tradehistory")
+        .onSuccess { request: HttpClientRequest ->
+          request.putHeader("Content-Type", "application/json")
+          request.end()
+        }
+        .compose { req -> req.send().map(HttpClientResponse::statusCode) }
+        .onComplete(
+            testContext.succeeding { statusCode ->
+              testContext.verify {
+                Assertions.assertEquals(401, statusCode)
+                testContext.completeNow()
+              }
+            }
+        )
+  }
+
+  @Test
+  fun cancelOrderNoAuth(vertx: Vertx, testContext: VertxTestContext) {
+    val client: HttpClient = vertx.createHttpClient()
+    client
+        .request(HttpMethod.DELETE, 8889, "localhost", "/BTCZAR/cancelorder/1")
         .onSuccess { request: HttpClientRequest ->
           request.putHeader("Content-Type", "application/json")
           request.end()

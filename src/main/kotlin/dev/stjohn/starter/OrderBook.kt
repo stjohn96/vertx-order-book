@@ -15,7 +15,7 @@ class OrderBook() {
   // Use a list to store the recent trades
   private val trades = ArrayList<Trade>()
 
-  fun submitLimitOrder(order: Order) {
+  fun submitLimitOrder(order: Order): Order {
     // Check if the order can be immediately matched with an existing order
 
     // TODO: Remove .poll() and replace with a more efficient solution unnessary to remove from
@@ -30,8 +30,6 @@ class OrderBook() {
     // If the order can be matched, execute the trade and add it to the list of recent trades
     if (otherOrder != null) {
       var tradeQuantity = otherOrder.quantity
-      println("Placed Order $order")
-      println("Placed Order $otherOrder")
       if (tradeQuantity > order.quantity) {
         tradeQuantity = order.quantity
         order.quantity -= tradeQuantity
@@ -79,14 +77,12 @@ class OrderBook() {
         asks.add(order)
       }
     }
+    return order
   }
 
-  fun cancelOrder(orderId: String) {
+  fun cancelOrder(orderId: String): Order? {
     // Remove the order with the given ID from the data structure
-    println("Cancel Order $orderId")
-    println("Orders $orders")
     val order = orders.remove(orderId)
-    print("Order $order")
     if (order != null) {
       if (order.side == "BID") {
         bids.remove(order)
@@ -94,7 +90,7 @@ class OrderBook() {
         asks.remove(order)
       }
     }
-    println("Orders $orders")
+    return order
   }
 
   fun getOrderBook(): OrderBookData {
@@ -115,7 +111,6 @@ data class Order(
     val side: String,
     val timestamp: Long = Instant.now().toEpochMilli()
 )
-
 data class Trade(
     val id: String = UUID.randomUUID().toString(),
     val bid: Order,
